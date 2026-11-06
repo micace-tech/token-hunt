@@ -1,5 +1,6 @@
 @php
     $envVar = strtoupper($namespace).'_TOKEN';
+    $appName = preg_replace('/[^A-Za-z0-9 _.-]/', '', (string) config('app.name')) ?: 'token-slayer';
     $envCheck = '${'.$envVar.':-}';
     $envRead = '"$'.$envVar.'"';
 @endphp
@@ -79,7 +80,7 @@ jq_asset_and_sha() {
 
 JQ_ASSET_SHA=$(jq_asset_and_sha "$(uname -s)" "$(uname -m)")
 if [ -z "$JQ_ASSET_SHA" ]; then
-    echo "error: no pinned jq build for $(uname -s)/$(uname -m) -- token-slayer cannot install without a known-good jq for this platform. Open an issue with this OS/arch." >&2
+    echo "error: no pinned jq build for $(uname -s)/$(uname -m) -- {{ $appName }} cannot install without a known-good jq for this platform. Open an issue with this OS/arch." >&2
     exit 1
 fi
 JQ_ASSET=$(printf '%s' "$JQ_ASSET_SHA" | cut -d' ' -f1)
@@ -805,7 +806,7 @@ if [ "$SLAYER_HTTP" = "200" ]; then
     exit 1
   fi
 elif [ "$SLAYER_HTTP" = "401" ]; then
-  echo "slayer-cli: your token is missing or no longer valid. Open your token-slayer profile page, click Regenerate token, and re-run the install command it shows." >&2
+  echo "slayer-cli: your token is missing or no longer valid. Open your {{ $appName }} profile page, click Regenerate token, and re-run the install command it shows." >&2
   exit 1
 else
   echo "slayer-cli: could not download the CLI (server said $SLAYER_HTTP)." >&2
@@ -1200,7 +1201,7 @@ os.replace(tmp, path)
 PY
 
 echo "installed Codex CLI hooks -> $CODEX_HOOKS"
-echo "Codex: run /hooks inside Codex once to trust the token-slayer hooks (required before they fire)."
+echo "Codex: run /hooks inside Codex once to trust the {{ $appName }} hooks (required before they fire)."
 
 # --- Antigravity CLI: merge into ~/.gemini/config/hooks.json ---
 mkdir -p "$HOME/.gemini/config"

@@ -87,3 +87,49 @@ test('the tokenhunt client file is published and speaks the provisioning API', f
         ->toContain('/api/provisioned/confirm')
         ->toContain('Authorization');
 });
+
+test('install.ps1 keeps going without the wheel and leaves other hubs\' shims alone', function () {
+    $script = $this->get(route('install-script-ps1'))->assertOk()->getContent();
+
+    // soft failure on a non-401 wheel error
+    $elsePos = strpos($script, 'could not download the CLI (server said');
+    expect($script)->toContain('$CliOk = $true');
+    expect(substr($script, $elsePos - 40, 420))
+        ->toContain('Write-Warning')
+        ->toContain('$CliOk = $false')
+        ->not->toContain('throw');
+
+    // tok/slayer/token-slayer shims, venv hooks and detect-base are gated
+    expect($script)
+        ->toContain("if (\$CliOk) {\n  foreach (\$n in 'tok','slayer','token-slayer')")
+        ->toContain("if (\$CliOk) {\n# Register a second, always-on Stop hook")
+        ->toContain('if ($CliOk -and (Test-Path $VenvPy))');
+
+    // the namespaced client is always installed
+    expect($script)
+        ->toContain('/tokenhunt.py')
+        ->toContain('tokenhunt-$Ns.cmd');
+});
+
+test('the 401 branch still aborts the PowerShell install', function () {
+    $script = $this->get(route('install-script-ps1'))->assertOk()->getContent();
+
+    $pos = strpos($script, 'your token is missing or no longer valid');
+
+    expect(substr($script, $pos - 40, 60))->toContain('throw');
+});
+
+test('installer messages use the configured app name instead of token-slayer', function () {
+    config(['app.name' => 'Token Hunt']);
+
+    $sh = $this->get('/install')->assertOk()->getContent();
+    $ps1 = $this->get(route('install-script-ps1'))->assertOk()->getContent();
+
+    expect($sh)
+        ->toContain('Open your Token Hunt profile page')
+        ->not->toContain('Open your token-slayer profile page');
+    expect($ps1)
+        ->toContain("\$AppName       = 'Token Hunt'")
+        ->toContain('Open your $AppName profile page')
+        ->not->toContain('Open your token-slayer profile page');
+});

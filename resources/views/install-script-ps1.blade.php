@@ -1,5 +1,6 @@
 @php
     $envVar = strtoupper($namespace).'_TOKEN';
+    $appName = preg_replace('/[^A-Za-z0-9 _.-]/', '', (string) config('app.name')) ?: 'token-slayer';
 @endphp
 # {{ $namespace }} hook installer (native Windows / PowerShell)
 # Installs Claude Code, Codex, and Antigravity CLI hooks that POST to {{ $baseUrl }}.
@@ -22,6 +23,7 @@ $ClientVersion = '{{ $clientVersion }}'
 $HookVersion = '{{ $hookVersion }}'
 $BaseUrl       = '{{ $baseUrl }}'
 $EnvVarName    = '{{ $envVar }}'
+$AppName       = '{{ $appName }}'
 
 @verbatim
 #Requires -Version 5.1
@@ -123,7 +125,7 @@ $jqArch = $env:PROCESSOR_ARCHITECTURE
 # architecture is in PROCESSOR_ARCHITEW6432 in that case.
 if ($jqArch -eq 'x86' -and $env:PROCESSOR_ARCHITEW6432) { $jqArch = $env:PROCESSOR_ARCHITEW6432 }
 if (-not $jqAssets.ContainsKey($jqArch)) {
-  throw "No pinned jq build for Windows/$jqArch -- token-slayer cannot install without a known-good jq for this platform. Open an issue with this OS/arch."
+  throw "No pinned jq build for Windows/$jqArch -- $AppName cannot install without a known-good jq for this platform. Open an issue with this OS/arch."
 }
 $jqAsset = $jqAssets[$jqArch]
 
@@ -223,6 +225,7 @@ $whl = Join-Path $env:TEMP 'slayer_cli-0.0.0-py3-none-any.whl'
 # transport failure is diagnosable instead of just "0".
 $slayerHttp = 0
 $slayerErr = $null
+$CliOk = $true
 try {
   Invoke-WebRequest -UseBasicParsing -Uri $WheelUrl -OutFile $whl `
     -Headers @{ Authorization = "Bearer $slayerToken" } | Out-Null
@@ -255,9 +258,11 @@ if ($slayerHttp -eq 200) {
   & $VenvPy -m pip install --quiet --force-reinstall --no-deps $whl
   if ($LASTEXITCODE -ne 0) { throw 'slayer-cli: wheel force-reinstall failed -- see the error above.' }
 } elseif ($slayerHttp -eq 401) {
-  throw 'slayer-cli: your token is missing or no longer valid. Open your token-slayer profile page, click Regenerate token, and re-run the install command it shows.'
+  throw "slayer-cli: your token is missing or no longer valid. Open your $AppName profile page, click Regenerate token, and re-run the install command it shows."
 } else {
-  throw "slayer-cli: could not download the CLI (server said $slayerHttp): $slayerErr"
+  Write-Warning "slayer-cli: could not download the CLI (server said $slayerHttp): $slayerErr"
+  Write-Warning "slayer-cli: continuing without it. Hooks are installed; use 'tokenhunt' for setup/status."
+  $CliOk = $false
 }
 Remove-Item $whl -ErrorAction SilentlyContinue
 
@@ -276,8 +281,29 @@ $shim = (@(
   'set "SLAYER_PROG_NAME=%~n0"',
   "`"$VenvPy`" -m slayer_cli %*"
 ) -join "`r`n") + "`r`n"
-foreach ($n in 'tok','slayer','token-slayer') {
-  Set-Content -Path (Join-Path $Bin "$n.cmd") -Value $shim -Encoding Ascii -NoNewline
+if ($CliOk) {
+  foreach ($n in 'tok','slayer','token-slayer') {
+    Set-Content -Path (Join-Path $Bin "$n.cmd") -Value $shim -Encoding Ascii -NoNewline
+  }
+}
+
+# Lightweight client: always installed, under its own name so it never
+# replaces another hub's tok/token-slayer shims.
+$ThUrl = $InstallUrl -replace '/install(\.ps1)?$', '/tokenhunt.py'
+$ThPy  = Join-Path $Cfg 'tokenhunt.py'
+try {
+  Invoke-WebRequest -UseBasicParsing -Uri $ThUrl -OutFile $ThPy | Out-Null
+  $thShim = (@(
+    '@echo off',
+    "`"$VenvPy`" `"$ThPy`" --ns $Ns %*"
+  ) -join "`r`n") + "`r`n"
+  Set-Content -Path (Join-Path $Bin "tokenhunt-$Ns.cmd") -Value $thShim -Encoding Ascii -NoNewline
+  if (-not (Test-Path (Join-Path $Bin 'tokenhunt.cmd'))) {
+    Set-Content -Path (Join-Path $Bin 'tokenhunt.cmd') -Value $thShim -Encoding Ascii -NoNewline
+  }
+  Write-Host "installed tokenhunt client -> $(Join-Path $Bin "tokenhunt-$Ns.cmd")"
+} catch {
+  Write-Warning "could not download $ThUrl (tokenhunt client not installed): $($_.Exception.Message)"
 }
 
 # --- PATH -- uv registry pattern + broadcast --------------------------------
@@ -1010,6 +1036,7 @@ os.replace(tmp, path)
 
 Write-Host "installed Claude Code hooks -> $Settings"
 
+if ($CliOk) {
 # Register a second, always-on Stop hook that warms the local usage cache
 # (independent of auto-switch, which stays opt-in via `token-slayer run`) so
 # `token-slayer tui` shows near-real-time quota without waiting on its
@@ -1093,6 +1120,7 @@ os.replace(tmp, path)
 '@ @($Settings)
 
 Write-Host "installed Claude Code session-tracking hook -> $Settings"
+}
 
 # --- Codex CLI: merge into ~/.codex/hooks.json ------------------------------
 # Modern Codex reads hooks from hooks.json, top-level "hooks" key, PascalCase
@@ -1246,7 +1274,7 @@ if (-not $gitBash) {
 
 # --- Register the machine's current Claude login as a base account slot ----
 # (best-effort, never blocks the install)
-if (Test-Path $VenvPy) {
+if ($CliOk -and (Test-Path $VenvPy)) {
   $env:SLAYER_NS = $Ns
   try { & $VenvPy -m slayer_cli detect-base 2>$null | Out-Null } catch { }
 }

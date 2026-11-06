@@ -35,3 +35,13 @@ test('the quick-update page shows a separate cmd.exe command for Windows, not ju
         ->assertSee('powershell -ExecutionPolicy ByPass -c', escape: false)
         ->assertSeeInOrder(['PowerShell:', 'irm', 'cmd.exe', 'powershell -ExecutionPolicy']);
 });
+
+test('the quick-update page is titled with the configured app name', function () {
+    config(['app.name' => 'Token Hunt']);
+    $this->actingAs(User::factory()->create());
+
+    $this->get('/update')
+        ->assertOk()
+        ->assertSee('Update Token Hunt')
+        ->assertDontSee('Update token-slayer');
+});
