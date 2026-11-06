@@ -126,7 +126,7 @@ test('install.sh handles a missing or corrupt codex hooks.json without crashing 
 test('install.sh reminds the user to trust codex hooks via the /hooks command', function () {
     $script = $this->get('/install')->getContent();
 
-    expect($script)->toContain('Codex: run /hooks inside Codex once to trust the token-slayer hooks (required before they fire).');
+    expect($script)->toContain('Codex: run /hooks inside Codex once to trust the '.config('app.name').' hooks (required before they fire).');
 });
 
 test('install.sh saves TOKEN_SLAYER_TOKEN to the token file when present', function () {

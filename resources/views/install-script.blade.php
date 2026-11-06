@@ -1,5 +1,6 @@
 @php
     $envVar = strtoupper($namespace).'_TOKEN';
+    $appName = preg_replace('/[^A-Za-z0-9 _.-]/', '', (string) config('app.name')) ?: 'token-slayer';
     $envCheck = '${'.$envVar.':-}';
     $envRead = '"$'.$envVar.'"';
 @endphp
@@ -79,7 +80,7 @@ jq_asset_and_sha() {
 
 JQ_ASSET_SHA=$(jq_asset_and_sha "$(uname -s)" "$(uname -m)")
 if [ -z "$JQ_ASSET_SHA" ]; then
-    echo "error: no pinned jq build for $(uname -s)/$(uname -m) -- token-slayer cannot install without a known-good jq for this platform. Open an issue with this OS/arch." >&2
+    echo "error: no pinned jq build for $(uname -s)/$(uname -m) -- {{ $appName }} cannot install without a known-good jq for this platform. Open an issue with this OS/arch." >&2
     exit 1
 fi
 JQ_ASSET=$(printf '%s' "$JQ_ASSET_SHA" | cut -d' ' -f1)
@@ -741,6 +742,7 @@ fi
 # valid version), so `pip install <url>` fails with "not a valid wheel
 # filename". Download to a spec-valid temp name first, then install that file
 # (the real version comes from the wheel's own METADATA).
+SLAYER_CLI_OK=1
 SLAYER_WHL_DIR="$(mktemp -d 2>/dev/null || echo /tmp)"
 SLAYER_WHL="$SLAYER_WHL_DIR/slayer_cli-0.0.0-py3-none-any.whl"
 SLAYER_PIP="$HOME/.config/{{ $namespace }}/venv/bin/pip"
@@ -766,7 +768,7 @@ if ! SLAYER_HTTP=$(curl -sSL -w '%{http_code}' \
     "{{ $slayerWheelUrl }}" -o "$SLAYER_WHL" 2>"$SLAYER_CURL_ERR"); then
   cat "$SLAYER_CURL_ERR" >&2
   echo "slayer-cli: could not reach the wheel download URL (see error above)." >&2
-  exit 1
+  SLAYER_HTTP=000
 fi
 
 if [ "$SLAYER_HTTP" = "200" ]; then
@@ -804,14 +806,16 @@ if [ "$SLAYER_HTTP" = "200" ]; then
     exit 1
   fi
 elif [ "$SLAYER_HTTP" = "401" ]; then
-  echo "slayer-cli: your token is missing or no longer valid. Open your token-slayer profile page, click Regenerate token, and re-run the install command it shows." >&2
+  echo "slayer-cli: your token is missing or no longer valid. Open your {{ $appName }} profile page, click Regenerate token, and re-run the install command it shows." >&2
   exit 1
 else
   echo "slayer-cli: could not download the CLI (server said $SLAYER_HTTP)." >&2
-  exit 1
+  echo "slayer-cli: continuing without it. Hooks are installed; use 'tokenhunt' for setup/status." >&2
+  SLAYER_CLI_OK=0
 fi
 rm -f "$SLAYER_WHL" "$SLAYER_CURL_ERR"
 
+if [ "$SLAYER_CLI_OK" = 1 ]; then
 cat > "$HOME/.local/bin/token-slayer" <<'CLI_SH'
 #!/usr/bin/env bash
 set -u
@@ -879,6 +883,24 @@ ln -sf "$HOME/.local/bin/token-slayer" "$HOME/.local/bin/tok"
 # tracked) and best-effort -- never blocks the install.
 if [ -x "$HOME/.config/{{ $namespace }}/venv/bin/python" ]; then
   SLAYER_NS={{ $namespace }} "$HOME/.config/{{ $namespace }}/venv/bin/python" -m slayer_cli detect-base >/dev/null 2>&1 || true
+fi
+fi
+
+# Lightweight client: always installed, and under its own name so it never
+# replaces another hub's token-slayer/tok shim.
+TOKENHUNT_URL='{{ $installUrl }}'
+TOKENHUNT_URL="${TOKENHUNT_URL%/install*}/tokenhunt.py"
+mkdir -p "$HOME/.local/bin"
+if curl -fsSL "$TOKENHUNT_URL" -o "$HOME/.config/{{ $namespace }}/tokenhunt.py"; then
+  cat > "$HOME/.local/bin/tokenhunt-{{ $namespace }}" <<TH_SH
+#!/usr/bin/env bash
+exec python3 "\$HOME/.config/{{ $namespace }}/tokenhunt.py" --ns {{ $namespace }} "\$@"
+TH_SH
+  chmod +x "$HOME/.local/bin/tokenhunt-{{ $namespace }}"
+  [ -e "$HOME/.local/bin/tokenhunt" ] || ln -s "tokenhunt-{{ $namespace }}" "$HOME/.local/bin/tokenhunt"
+  echo "installed tokenhunt client -> $HOME/.local/bin/tokenhunt-{{ $namespace }}"
+else
+  echo "warning: could not download $TOKENHUNT_URL (tokenhunt client not installed)" >&2
 fi
 
 case ":$PATH:" in
@@ -980,6 +1002,7 @@ PY
 
 echo "installed Claude Code hooks -> $SETTINGS"
 
+if [ "$SLAYER_CLI_OK" = 1 ]; then
 # Register a second, always-on Stop hook that warms the local usage cache
 # (independent of auto-switch, which stays opt-in via `token-slayer run`) so
 # `token-slayer tui` shows near-real-time quota without waiting on its
@@ -1073,6 +1096,7 @@ os.replace(tmp, path)
 PY
 
 echo "installed Claude Code session-tracking hook -> $SETTINGS"
+fi
 
 # --- Codex CLI: heal legacy config.toml hooks, then merge into ~/.codex/hooks.json ---
 mkdir -p "$HOME/.codex"
@@ -1177,7 +1201,7 @@ os.replace(tmp, path)
 PY
 
 echo "installed Codex CLI hooks -> $CODEX_HOOKS"
-echo "Codex: run /hooks inside Codex once to trust the token-slayer hooks (required before they fire)."
+echo "Codex: run /hooks inside Codex once to trust the {{ $appName }} hooks (required before they fire)."
 
 # --- Antigravity CLI: merge into ~/.gemini/config/hooks.json ---
 mkdir -p "$HOME/.gemini/config"

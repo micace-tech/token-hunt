@@ -11,7 +11,7 @@
         @include('partials.account-nav', ['active' => 'setup'])
 
         <div class="max-w-3xl mx-auto p-8">
-            <h1 class="text-2xl font-bold text-gray-900 mb-1">Update token-slayer</h1>
+            <h1 class="text-2xl font-bold text-gray-900 mb-1">Update {{ config('app.name') }}</h1>
             <p class="text-sm text-gray-500 mb-6">You already have it installed — pick your platform and re-run the installer. It reuses the token already saved on this machine, nothing to paste.</p>
 
             <div class="grid grid-cols-2 gap-3 mb-4">

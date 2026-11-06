@@ -1,4 +1,10 @@
 {{-- resources/views/partials/setup/cli-track.blade.php --}}
+@php
+    // Without a configured slayer-cli release channel the installer skips the
+    // `tok` CLI and installs the lightweight `tokenhunt` client instead.
+    $cliAvailable = app(\App\Services\GitHub\GitHubClient::class)->isConfigured();
+    $statusCommand = $cliAvailable ? 'tok status' : 'tokenhunt status';
+@endphp
 <div x-show="track === 'cli'" x-cloak x-data="{ platform: null, pythonOk: null, pyFix: false, tokenSource: null, sourcePlatform: null, pastedToken: '', plainTokenGenerated: false }">
     {{-- Step 2: platform --}}
     <x-setup.step :n="2">
@@ -116,8 +122,8 @@
 
         <div x-show="tokenSource === 'here'" x-cloak class="bg-gray-50 border border-gray-200 rounded-lg p-4">
             <p class="text-sm font-semibold text-gray-700 mb-1">Check whether this machine is already installed</p>
-            <div class="bg-gray-900 text-amber-300 rounded-md p-2 pr-20 relative font-mono text-xs cursor-pointer" @click="copy('status-check', 'tok status')">
-                $ tok status
+            <div class="bg-gray-900 text-amber-300 rounded-md p-2 pr-20 relative font-mono text-xs cursor-pointer" @click="copy('status-check', '{{ $statusCommand }}')">
+                $ {{ $statusCommand }}
                 <span class="absolute right-2 top-1.5 bg-gray-800 text-gray-300 text-[10px] font-semibold px-1.5 py-0.5 rounded" x-text="copied === 'status-check' ? 'Copied' : 'Copy'"></span>
             </div>
             <p class="text-xs text-gray-500 mt-1">Says "command not found"? Treat it as not installed — go back and pick "No, this is my first machine" above.</p>
@@ -236,16 +242,21 @@
         <p class="text-xs font-semibold text-orange-600 mb-1">Step 6 / 6</p>
         <h2 class="text-xl font-bold text-gray-900 mb-4">Verify & next steps</h2>
 
-        <div class="bg-gray-900 text-amber-300 rounded-lg p-3 pr-24 relative font-mono text-sm cursor-pointer mb-3" @click="copy('verify', 'tok status')">
-            $ tok status
+        <div class="bg-gray-900 text-amber-300 rounded-lg p-3 pr-24 relative font-mono text-sm cursor-pointer mb-3" @click="copy('verify', '{{ $statusCommand }}')">
+            $ {{ $statusCommand }}
             <span class="absolute right-2 top-2 bg-gray-800 text-gray-300 text-xs font-semibold px-2 py-1 rounded" x-text="copied === 'verify' ? 'Copied' : 'Copy'"></span>
         </div>
 
-        <p class="text-sm text-gray-500 mb-3">Every command here also has the full form <code>token-slayer</code>, in case <code>tok</code> isn't on PATH yet.</p>
-        <p class="text-sm text-gray-500 mb-3">Have a company account? Contact your admin, then run <code>tok setup</code>. Multiple personal accounts? <code>tok switch NAME</code>.</p>
+        @if ($cliAvailable)
+            <p class="text-sm text-gray-500 mb-3">Every command here also has the full form <code>token-slayer</code>, in case <code>tok</code> isn't on PATH yet.</p>
+            <p class="text-sm text-gray-500 mb-3">Have a company account? Contact your admin, then run <code>tok setup</code>. Multiple personal accounts? <code>tok switch NAME</code>.</p>
+        @else
+            <p class="text-sm text-gray-500 mb-3">The command is <code>tokenhunt</code> (full name <code>tokenhunt-{{ $namespace }}</code>). It never replaces a <code>tok</code> or <code>token-slayer</code> installed for another hub.</p>
+            <p class="text-sm text-gray-500 mb-3">Have a company account? Ask your admin to add you under Accounts → Members, then run <code>tokenhunt setup</code>. It replaces this machine's Claude login (a backup is kept), so skip it if you want to keep your current login: the hooks count your tokens either way.</p>
+        @endif
         <div class="flex items-center justify-between">
             <button type="button" @click="direction = -1; step = 5" class="cursor-pointer text-sm font-semibold text-gray-500 hover:text-orange-600 transition inline-flex items-center gap-1">← Back</button>
-            <a href="{{ route('guide') }}" class="text-sm text-orange-600 underline font-medium hover:text-orange-700">See the full tok command reference →</a>
+            <a href="{{ route('guide') }}" class="text-sm text-orange-600 underline font-medium hover:text-orange-700">{{ $cliAvailable ? 'See the full tok command reference' : 'See the guide' }} →</a>
         </div>
     </x-setup.step>
 </div>
