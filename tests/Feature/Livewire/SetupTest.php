@@ -7,6 +7,11 @@ use Livewire\Livewire;
 
 uses(RefreshDatabase::class);
 
+beforeEach(fn () => config([
+    'github.token' => 'test-token',
+    'github.cli_repo' => 'owner/cli',
+]));
+
 test('setup redirects guests to the slack login route', function () {
     $this->get('/setup')->assertRedirect(route('slack.login'));
 });
@@ -166,4 +171,30 @@ test('claude chat track has a back button on both steps', function () {
     $this->get('/setup')
         ->assertOk()
         ->assertSeeInOrder(['Tampermonkey', '← Back']);
+});
+
+test('cli track points at the tokenhunt client when no slayer-cli channel is configured', function () {
+    config([
+        'app.hook_namespace' => 'token_hunt',
+        'github.token' => '',
+        'github.cli_repo' => '',
+    ]);
+    $this->actingAs(User::factory()->create());
+
+    $this->get('/setup')
+        ->assertOk()
+        ->assertSee('tokenhunt status')
+        ->assertSee('tokenhunt setup')
+        ->assertSee('tokenhunt-token_hunt')
+        ->assertDontSee('tok setup')
+        ->assertDontSee('tok switch NAME');
+});
+
+test('cli track keeps the tok commands when slayer-cli is configured', function () {
+    $this->actingAs(User::factory()->create());
+
+    $this->get('/setup')
+        ->assertOk()
+        ->assertSee('tok setup')
+        ->assertDontSee('tokenhunt setup');
 });

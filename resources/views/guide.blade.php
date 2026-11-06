@@ -111,6 +111,50 @@
         ],
     ];
 
+    // Without a configured slayer-cli release channel there is no `tok` CLI;
+    // the installer ships the lightweight `tokenhunt` client instead.
+    $cliAvailable = app(\App\Services\GitHub\GitHubClient::class)->isConfigured();
+    $installUrl = url('/install');
+
+    $tokenhuntTasks = [
+        [
+            'q' => 'Check this machine is set up',
+            'cmd' => 'tokenhunt status',
+            'desc' => 'Shows the namespace, the server it reports to, whether the hook token and hook script are present, and where Claude Code keeps its login. It changes nothing and needs no network.',
+            'example' => 'tokenhunt status',
+            'tip' => "Full name: <code>tokenhunt-{$namespace}</code>. The short <code>tokenhunt</code> link is only created when that name is free, so it never replaces another hub's command.",
+        ],
+        [
+            'q' => 'Pull an org-provisioned account',
+            'cmd' => 'tokenhunt setup',
+            'desc' => 'For an account an admin already provisioned for this machine: fetches the grant, writes it where Claude Code reads its login, then confirms with the server. No manual login needed. Your existing login file is backed up first (<code>.credentials.json.bak-&lt;time&gt;</code>). Restart Claude Code afterwards.',
+            'example' => 'tokenhunt setup',
+            'tip' => 'This <strong>replaces the Claude login on this machine</strong>. Skip it if you want to keep your current login: the hooks count your tokens either way.',
+        ],
+        [
+            'q' => 'Preview before changing anything',
+            'cmd' => 'tokenhunt setup --dry-run',
+            'desc' => 'Fetches the grant and shows which account would be installed, then stops before any change.',
+            'example' => 'tokenhunt setup --dry-run',
+        ],
+        [
+            'q' => 'Install one specific account',
+            'cmd' => 'tokenhunt setup --account EMAIL [--yes]',
+            'desc' => 'When an admin gave this machine more than one account, install only the one with this email. <code>--yes</code> skips the confirmation prompt.',
+            'example' => 'tokenhunt setup --account me@company.com',
+        ],
+        [
+            'q' => 'Update the hooks and the client',
+            'cmd' => "curl -fsSL {$installUrl} | sh",
+            'desc' => 'Re-run the install command from the Setup page. It is idempotent and also refreshes <code>tokenhunt</code>. If your hook token was regenerated, use the command shown on the Setup page, which carries the new token.',
+            'example' => "curl -fsSL {$installUrl} | sh",
+        ],
+    ];
+
+    if (! $cliAvailable) {
+        $accountTasks = $tokenhuntTasks;
+    }
+
     $topics = [
         'accounts' => ['label' => 'Accounts', 'tasks' => $accountTasks],
         'custom' => ['label' => 'Custom hook display', 'tasks' => $customTasks],
@@ -122,7 +166,7 @@
 
     <div class="max-w-3xl mx-auto p-8" x-data="{ topic: 'accounts', openTask: null }">
         <h1 class="text-2xl font-bold text-gray-900 mb-1">Command reference</h1>
-        <p class="text-sm text-gray-500 mb-6">Pick what you want to do — the command shows up below. Everything here also has the full form <code class="text-gray-700">token-slayer</code>, in case <code class="text-gray-700">tok</code> isn't on PATH yet.</p>
+        <p class="text-sm text-gray-500 mb-6">Pick what you want to do — the command shows up below. @if ($cliAvailable)Everything here also has the full form <code class="text-gray-700">token-slayer</code>, in case <code class="text-gray-700">tok</code> isn't on PATH yet.@else This server ships the lightweight <code class="text-gray-700">tokenhunt</code> client instead of the <code class="text-gray-700">tok</code> switcher.@endif</p>
 
         <div class="flex gap-6">
             <nav class="w-44 flex-shrink-0 space-y-1">
@@ -139,7 +183,7 @@
             <div class="flex-1 min-w-0">
                 <div x-show="topic === 'accounts'" x-cloak>
                     <div class="bg-amber-50 border border-amber-200 text-amber-800 text-xs rounded-lg px-3 py-2 mb-4">
-                        <span class="font-medium">macOS:</span> the first <code>tok switch</code> (or <code>setup</code>) pops a Keychain prompt asking for your login password/Touch ID — choose
+                        <span class="font-medium">macOS:</span> the first {!! $cliAvailable ? '<code>tok switch</code> (or <code>setup</code>)' : '<code>tokenhunt setup</code>' !!} pops a Keychain prompt asking for your login password/Touch ID — choose
                         <em>Always Allow</em> to skip repeat prompts. On a brand-new Mac, <code>python3</code> may be
                         an Xcode stub that pops its own "Install Command Line Developer Tools?" dialog — check with
                         <code>xcode-select -p</code> first (empty output → run <code>xcode-select --install</code>).
@@ -148,7 +192,11 @@
                         @include('partials.guide.task', ['task' => $task, 'topicKey' => 'accounts', 'i' => $i])
                     @endforeach
                     <p class="text-xs text-gray-400 mt-3">
-                        <code>tok --help</code> or <code>tok &lt;command&gt; --help</code> for full details on any of these.
+                        @if ($cliAvailable)
+                            <code>tok --help</code> or <code>tok &lt;command&gt; --help</code> for full details on any of these.
+                        @else
+                            <code>tokenhunt --help</code> or <code>tokenhunt setup --help</code> for every option.
+                        @endif
                     </p>
                 </div>
 

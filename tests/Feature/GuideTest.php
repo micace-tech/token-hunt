@@ -5,6 +5,11 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
 
+beforeEach(fn () => config([
+    'github.token' => 'test-token',
+    'github.cli_repo' => 'owner/cli',
+]));
+
 test('guide redirects guests to the slack login route', function () {
     $this->get('/guide')->assertRedirect(route('slack.login'));
 });
@@ -125,4 +130,23 @@ test('character guide explains the minion pool and opens the Minions tab in the 
         ->assertDontSee('Customize minions')
         ->assertSee('href="'.route('battlefield.open-sheet', 'minions').'"', escape: false)
         ->assertDontSee('target="_blank"', escape: false);
+});
+
+test('guide lists the tokenhunt commands instead of tok when no slayer-cli channel is configured', function () {
+    config([
+        'app.hook_namespace' => 'token_hunt',
+        'github.token' => '',
+        'github.cli_repo' => '',
+    ]);
+    $this->actingAs(User::factory()->create());
+
+    $this->get('/guide')
+        ->assertOk()
+        ->assertSee('tokenhunt status')
+        ->assertSee('tokenhunt setup --dry-run')
+        ->assertSee('tokenhunt setup --account EMAIL', escape: false)
+        ->assertSee('tokenhunt-token_hunt')
+        ->assertSee(url('/install'))
+        ->assertDontSee('tok switch TARGET', escape: false)
+        ->assertDontSee('Browse and switch interactively');
 });
