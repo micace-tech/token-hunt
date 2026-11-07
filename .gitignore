@@ -34,3 +34,7 @@ Thumbs.db
 /public/assets/battlefield/heroes/heroes-atlas.json
 /resources/js/battlefield/config/heroes-atlas-version.js
 /.superpowers/
+
+# Python bytecode
+__pycache__/
+*.pyc
