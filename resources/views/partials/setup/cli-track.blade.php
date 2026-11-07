@@ -252,7 +252,7 @@
             <p class="text-sm text-gray-500 mb-3">Have a company account? Contact your admin, then run <code>tok setup</code>. Multiple personal accounts? <code>tok switch NAME</code>.</p>
         @else
             <p class="text-sm text-gray-500 mb-3">The command is <code>tokenhunt</code> (full name <code>tokenhunt-{{ $namespace }}</code>). It never replaces a <code>tok</code> or <code>token-slayer</code> installed for another hub.</p>
-            <p class="text-sm text-gray-500 mb-3">Have a company account? Ask your admin to add you under Accounts → Members, then run <code>tokenhunt setup</code>. It replaces this machine's Claude login (a backup is kept), so skip it if you want to keep your current login: the hooks count your tokens either way.</p>
+            <p class="text-sm text-gray-500 mb-3">Have a company account? Ask your admin to add you under Accounts → Members, then run <code>tokenhunt setup</code>. Your current Claude login is saved as a slot first, so <code>tokenhunt switch</code> brings it back. <code>tokenhunt list</code> shows every account.</p>
         @endif
         <div class="flex items-center justify-between">
             <button type="button" @click="direction = -1; step = 5" class="cursor-pointer text-sm font-semibold text-gray-500 hover:text-orange-600 transition inline-flex items-center gap-1">← Back</button>
